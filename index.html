@@ -71,6 +71,7 @@
   .store-item input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; }
   #status { margin-top: 16px; font-weight: 500; color: var(--text); min-height: 1.2em; }
   .error { color: var(--red); font-weight: 600; }
+  select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; background: white; }
   @media (max-width: 700px) { .upload-row { grid-template-columns: 1fr; } .tabs { width: 100%; justify-content: center; } }
 </style>
 </head>
@@ -150,6 +151,18 @@
       <label style="display:flex; align-items:center; gap:8px;"><input type="checkbox" id="set-ratio" checked> Reject pairs with price ratio > 2.5×</label>
     </div>
     <div class="settings-section">
+      <h3>Auto-run interval</h3>
+      <p style="color:var(--muted); font-size:14px; margin-top:0;">How often the comparison should ideally refresh. Actual scheduled runs are handled outside the browser (bot or automation).</p>
+      <select id="set-interval" onchange="saveSettings()">
+        <option value="manual">Manual only</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="biweekly">Every 2 weeks</option>
+        <option value="monthly">Monthly</option>
+      </select>
+      <div id="interval-note" style="margin-top:8px; font-size:13px; color:var(--muted);"></div>
+    </div>
+    <div class="settings-section">
       <h3>Competitor stores</h3>
       <p style="color:var(--muted); font-size:14px; margin-top:0;">Add shops to compare against. Freight % is added to their prices.</p>
       <div class="store-list" id="store-list"></div>
@@ -200,6 +213,7 @@ function checkPin() {
     buildColToggles();
     renderStores();
     renderUploadBoxes();
+    updateIntervalNote();
   } else {
     document.getElementById("pin-error").style.display = "block";
   }
@@ -211,7 +225,10 @@ function showTab(name) {
   ["upload","results","settings"].forEach(t => {
     document.getElementById("tab-" + t).style.display = t === name ? "block" : "none";
   });
-  if (name === "settings") renderStores();
+  if (name === "settings") {
+    renderStores();
+    updateIntervalNote();
+  }
 }
 
 function renderUploadBoxes() {
@@ -481,10 +498,22 @@ function removeStore(i) {
   renderUploadBoxes();
 }
 
+function updateIntervalNote() {
+  const interval = document.getElementById("set-interval").value;
+  const note = document.getElementById("interval-note");
+  if (interval === "manual") {
+    note.textContent = "You run comparisons manually.";
+  } else {
+    note.textContent = `Preferred: ${interval}. Use a Grok Bot or Automation to actually schedule the refresh.`;
+  }
+}
+
 function saveSettings() {
   localStorage.setItem("mp-cols", JSON.stringify(COLUMNS.map(c => ({key:c.key, show:c.show}))));
   localStorage.setItem("mp-ratio", document.getElementById("set-ratio").checked);
   localStorage.setItem("mp-stores", JSON.stringify(stores));
+  localStorage.setItem("mp-interval", document.getElementById("set-interval").value);
+  updateIntervalNote();
 }
 function loadSettings() {
   try {
@@ -494,6 +523,8 @@ function loadSettings() {
     if (r !== null) document.getElementById("set-ratio").checked = r === "true";
     const savedStores = JSON.parse(localStorage.getItem("mp-stores") || "null");
     if (savedStores) stores = savedStores;
+    const interval = localStorage.getItem("mp-interval");
+    if (interval) document.getElementById("set-interval").value = interval;
   } catch(e) {}
 }
 document.getElementById("set-ratio").onchange = saveSettings;
