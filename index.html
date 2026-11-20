@@ -69,7 +69,8 @@
   .store-list { margin: 12px 0; }
   .store-item { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; padding: 12px; background: #f8fafc; border-radius: 12px; }
   .store-item input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; }
-  #status { margin-top: 16px; font-weight: 500; }
+  #status { margin-top: 16px; font-weight: 500; color: var(--text); }
+  .error { color: var(--red); font-weight: 600; }
   @media (max-width: 700px) { .upload-row { grid-template-columns: 1fr; } .tabs { width: 100%; justify-content: center; } }
 </style>
 </head>
@@ -206,7 +207,7 @@ function checkPin() {
 
 function showTab(name) {
   document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
-  event.target.classList.add("active");
+  if (event && event.target) event.target.classList.add("active");
   ["upload","results","settings"].forEach(t => {
     document.getElementById("tab-" + t).style.display = t === name ? "block" : "none";
   });
@@ -250,14 +251,18 @@ function cleanVVS(v) { if (v == null) return null; const s = String(v).replace(/
 function num(v) { if (v == null) return null; const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? null : n; }
 
 function parseFile(file) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
+    if (!file) { reject(new Error("No file")); return; }
     const reader = new FileReader();
     reader.onload = e => {
-      const data = new Uint8Array(e.target.result);
-      const wb = XLSX.read(data, { type: "array" });
-      const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null });
-      resolve(json);
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null });
+        resolve(json);
+      } catch (err) { reject(err); }
     };
+    reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsArrayBuffer(file);
   });
 }
@@ -266,82 +271,94 @@ function setProgress(pct, text) {
   const container = document.getElementById("progress-container");
   const fill = document.getElementById("progress-fill");
   const txt = document.getElementById("progress-text");
-  container.style.display = "block";
-  fill.style.width = pct + "%";
-  txt.textContent = text;
+  if (container) {
+    container.style.display = "block";
+    if (fill) fill.style.width = pct + "%";
+    if (txt) txt.textContent = text;
+  }
 }
 
 async function runComparison() {
   const status = document.getElementById("status");
   status.textContent = "";
+  status.className = "";
   setProgress(5, "Starting...");
-  const handil = await parseFile(files.handil);
-  setProgress(15, "Handil loaded");
+  try {
+    if (!files.handil) throw new Error("Please upload the handil file first");
+    const handil = await parseFile(files.handil);
+    setProgress(15, "Handil loaded");
 
-  const shopData = {};
-  let progress = 20;
-  const step = 45 / Math.max(1, stores.length);
-  for (const s of stores) {
-    if (files[s.id]) {
-      setProgress(progress, `Reading ${s.name}...`);
-      shopData[s.id] = await parseFile(files[s.id]);
-      progress += step;
-    }
-  }
-
-  setProgress(70, "Pairing products...");
-  const useRatio = document.getElementById("set-ratio").checked;
-
-  const lookups = {};
-  stores.forEach(s => {
-    lookups[s.id] = { byEAN: {}, byVVS: {} };
-    const data = shopData[s.id] || [];
-    data.forEach(r => {
-      const ean = cleanEAN(r.ean);
-      const vvs = cleanVVS(r.sku || r.vvs_nr);
-      let price = num(r.price);
-      if (price && s.freight) price = price * (1 + s.freight / 100);
-      if (ean && price) lookups[s.id].byEAN[ean] = { ...r, price };
-      if (vvs && price) lookups[s.id].byVVS[vvs] = { ...r, price };
-    });
-  });
-
-  allResults = handil.map(mp => {
-    const mpNr = mp.nr || mp.id || "";
-    const mpName = mp.name || "";
-    const mpPrice = num(mp.price);
-    const mpEAN = cleanEAN(mp.ean);
-    const mpVVS = cleanVVS(mp.nr) || cleanVVS(mp.vvs);
-    let best = null;
-    function consider(hit, shopName, method) {
-      if (!hit || !hit.price) return;
-      if (useRatio && mpPrice && (hit.price / mpPrice > 2.5 || mpPrice / hit.price > 2.5)) return;
-      if (!best || hit.price < best.shop_price) {
-        best = { shop: shopName, shop_id: hit.sku || hit.id || hit.vvs_nr || "", shop_name: hit.name || "", shop_price: hit.price, method };
+    const shopData = {};
+    let progress = 20;
+    const step = 45 / Math.max(1, stores.length);
+    for (const s of stores) {
+      if (files[s.id]) {
+        setProgress(progress, `Reading ${s.name}...`);
+        shopData[s.id] = await parseFile(files[s.id]);
+        progress += step;
       }
     }
-    stores.forEach(s => {
-      if (mpEAN && lookups[s.id].byEAN[mpEAN]) consider(lookups[s.id].byEAN[mpEAN], s.name, "EAN");
-      if (mpVVS && lookups[s.id].byVVS[mpVVS]) consider(lookups[s.id].byVVS[mpVVS], s.name, "VVS");
-    });
-    const diff = (best && mpPrice) ? ((best.shop_price - mpPrice) / mpPrice * 100) : null;
-    return {
-      MP_nr: mpNr, MP_name: mpName, MP_price: mpPrice,
-      shop: best ? best.shop : "", shop_id: best ? best.shop_id : "", shop_name: best ? best.shop_name : "",
-      shop_price: best ? best.shop_price : null,
-      difference_pct: diff != null ? Math.round(diff * 10) / 10 : null,
-      how_paired: best ? best.method : ""
-    };
-  });
 
-  setProgress(100, "Complete");
-  setTimeout(() => { document.getElementById("progress-container").style.display = "none"; }, 2000);
-  status.textContent = `Done. ${allResults.filter(r => r.shop).length} matched out of ${allResults.length}.`;
-  updateShopFilter();
-  showTab("results");
-  document.querySelector(".tabs button:nth-child(2)").classList.add("active");
-  document.querySelector(".tabs button:nth-child(1)").classList.remove("active");
-  applyFilters();
+    setProgress(70, "Pairing products...");
+    const useRatio = document.getElementById("set-ratio").checked;
+
+    const lookups = {};
+    stores.forEach(s => {
+      lookups[s.id] = { byEAN: {}, byVVS: {} };
+      const data = shopData[s.id] || [];
+      data.forEach(r => {
+        const ean = cleanEAN(r.ean);
+        const vvs = cleanVVS(r.sku || r.vvs_nr);
+        let price = num(r.price);
+        if (price && s.freight) price = price * (1 + s.freight / 100);
+        if (ean && price) lookups[s.id].byEAN[ean] = { ...r, price };
+        if (vvs && price) lookups[s.id].byVVS[vvs] = { ...r, price };
+      });
+    });
+
+    allResults = handil.map(mp => {
+      const mpNr = mp.nr || mp.id || "";
+      const mpName = mp.name || "";
+      const mpPrice = num(mp.price);
+      const mpEAN = cleanEAN(mp.ean);
+      const mpVVS = cleanVVS(mp.nr) || cleanVVS(mp.vvs);
+      let best = null;
+      function consider(hit, shopName, method) {
+        if (!hit || !hit.price) return;
+        if (useRatio && mpPrice && (hit.price / mpPrice > 2.5 || mpPrice / hit.price > 2.5)) return;
+        if (!best || hit.price < best.shop_price) {
+          best = { shop: shopName, shop_id: hit.sku || hit.id || hit.vvs_nr || "", shop_name: hit.name || "", shop_price: hit.price, method };
+        }
+      }
+      stores.forEach(s => {
+        if (mpEAN && lookups[s.id].byEAN[mpEAN]) consider(lookups[s.id].byEAN[mpEAN], s.name, "EAN");
+        if (mpVVS && lookups[s.id].byVVS[mpVVS]) consider(lookups[s.id].byVVS[mpVVS], s.name, "VVS");
+      });
+      const diff = (best && mpPrice) ? ((best.shop_price - mpPrice) / mpPrice * 100) : null;
+      return {
+        MP_nr: mpNr, MP_name: mpName, MP_price: mpPrice,
+        shop: best ? best.shop : "", shop_id: best ? best.shop_id : "", shop_name: best ? best.shop_name : "",
+        shop_price: best ? best.shop_price : null,
+        difference_pct: diff != null ? Math.round(diff * 10) / 10 : null,
+        how_paired: best ? best.method : ""
+      };
+    });
+
+    setProgress(100, "Complete");
+    setTimeout(() => { document.getElementById("progress-container").style.display = "none"; }, 1500);
+    status.textContent = `Done. ${allResults.filter(r => r.shop).length} matched out of ${allResults.length}.`;
+    updateShopFilter();
+    showTab("results");
+    document.querySelector(".tabs button:nth-child(2)").classList.add("active");
+    document.querySelector(".tabs button:nth-child(1)").classList.remove("active");
+    applyFilters();
+  } catch (err) {
+    console.error(err);
+    setProgress(0, "Error");
+    status.textContent = "Error: " + (err.message || err);
+    status.className = "error";
+    setTimeout(() => { document.getElementById("progress-container").style.display = "none"; }, 3000);
+  }
 }
 
 function updateShopFilter() {
