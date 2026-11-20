@@ -1,1 +1,360 @@
-See next message - content too long for one call, will update
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MP Price Comparison</title>
+<style>
+  :root { --bg:#f8f9fa; --card:#fff; --accent:#1f4e79; --green:#2e7d32; --red:#c62828; --border:#e0e0e0; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: var(--bg); color: #222; }
+  header { background: var(--accent); color: white; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  header .sub { opacity: .85; font-size: .9rem; }
+  #pin-gate { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); }
+  #pin-gate .card { background: var(--card); padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.08); text-align: center; }
+  #pin-gate input { font-size: 28px; padding: 10px 16px; width: 180px; text-align: center; letter-spacing: 6px; border: 2px solid var(--border); border-radius: 8px; }
+  button { background: var(--accent); color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  button:hover { filter: brightness(1.1); }
+  #app { display: none; max-width: 1400px; margin: 0 auto; padding: 20px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
+  .tabs button { background: none; color: #555; border-radius: 6px 6px 0 0; }
+  .tabs button.active { background: var(--card); color: var(--accent); font-weight: 600; border-bottom: 2px solid var(--accent); }
+  .panel { background: var(--card); border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .upload-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .upload-box { border: 2px dashed #ccc; padding: 16px; border-radius: 8px; text-align: center; }
+  .upload-box.ready { border-color: var(--green); background: #f1f8e9; }
+  .filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; align-items: end; }
+  .filters label { font-size: 13px; display: block; margin-bottom: 4px; }
+  .filters input, .filters select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: #f0f4f8; cursor: pointer; user-select: none; position: sticky; top: 0; }
+  th:hover { background: #e3eaf2; }
+  tr:hover { background: #f8fbff; }
+  .diff-pos { color: var(--red); font-weight: 600; }
+  .diff-neg { color: var(--green); font-weight: 600; }
+  .sure { color: var(--green); }
+  #status { margin: 10px 0; font-weight: 500; }
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .settings-grid label { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  @media (max-width: 900px) { .upload-row, .settings-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div id="pin-gate">
+  <div class="card">
+    <h2>MP Price Comparison</h2>
+    <p>Enter PIN</p>
+    <input type="password" id="pin" maxlength="6" placeholder="••••••" autofocus>
+    <br><br>
+    <button onclick="checkPin()">Enter</button>
+    <p id="pin-error" style="color:var(--red); display:none; margin-top:12px;">Wrong PIN</p>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <h1>MP Price Comparison</h1>
+    <div class="sub">handil.mp.fo vs Krosstein & BilligVVS · exact EAN / VVS only · +8% freight on BilligVVS</div>
+  </header>
+
+  <div class="tabs">
+    <button class="active" onclick="showTab('upload')">Upload & Run</button>
+    <button onclick="showTab('results')">Results</button>
+    <button onclick="showTab('settings')">Settings</button>
+  </div>
+
+  <div id="tab-upload" class="panel">
+    <div class="upload-row">
+      <div class="upload-box" id="box-handil">
+        <strong>handil.mp.fo</strong><br><small>our shop</small><br>
+        <input type="file" id="file-handil" accept=".xlsx,.xls,.csv" onchange="fileLoaded('handil')">
+      </div>
+      <div class="upload-box" id="box-krosstein">
+        <strong>Krosstein</strong><br><small>competitor</small><br>
+        <input type="file" id="file-krosstein" accept=".xlsx,.xls,.csv" onchange="fileLoaded('krosstein')">
+      </div>
+      <div class="upload-box" id="box-billig">
+        <strong>BilligVVS</strong><br><small>+8% freight</small><br>
+        <input type="file" id="file-billig" accept=".xlsx,.xls,.csv" onchange="fileLoaded('billig')">
+      </div>
+    </div>
+    <button id="run-btn" onclick="runComparison()" disabled>Run comparison</button>
+    <div id="status"></div>
+  </div>
+
+  <div id="tab-results" class="panel" style="display:none;">
+    <div class="filters">
+      <div>
+        <label>Search name</label>
+        <input type="text" id="f-search" placeholder="filter..." oninput="applyFilters()">
+      </div>
+      <div>
+        <label>Shop</label>
+        <select id="f-shop" onchange="applyFilters()">
+          <option value="">All</option>
+          <option value="Krosstein">Krosstein</option>
+          <option value="BilligVVS">BilligVVS</option>
+          <option value="">Only unmatched</option>
+        </select>
+      </div>
+      <div>
+        <label>Diff %</label>
+        <select id="f-diff" onchange="applyFilters()">
+          <option value="">All</option>
+          <option value="cheaper">We are cheaper</option>
+          <option value="more">We are more expensive</option>
+          <option value="big">Diff > 20%</option>
+        </select>
+      </div>
+      <div>
+        <label>Price min</label>
+        <input type="number" id="f-min" placeholder="0" oninput="applyFilters()" style="width:80px">
+      </div>
+      <div>
+        <label>Price max</label>
+        <input type="number" id="f-max" placeholder="any" oninput="applyFilters()" style="width:80px">
+      </div>
+      <button onclick="downloadResults()">Download Excel</button>
+    </div>
+    <div id="results-container"></div>
+  </div>
+
+  <div id="tab-settings" class="panel" style="display:none;">
+    <h3>Show / hide columns</h3>
+    <div class="settings-grid" id="col-toggles"></div>
+    <hr>
+    <h3>Other</h3>
+    <label><input type="checkbox" id="set-freight" checked> Add 8% freight to BilligVVS</label><br>
+    <label><input type="checkbox" id="set-ratio" checked> Reject pairs with price ratio > 2.5×</label><br>
+    <p style="color:#666; font-size:13px; margin-top:16px;">Settings are saved in this browser.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const PIN = "312000";
+let files = { handil: null, krosstein: null, billig: null };
+let allResults = [];
+let sortCol = "difference_pct";
+let sortDir = -1;
+
+const COLUMNS = [
+  { key: "MP_nr", label: "MP nr", show: true },
+  { key: "MP_name", label: "MP name", show: true },
+  { key: "MP_price", label: "MP price", show: true },
+  { key: "shop", label: "Shop", show: true },
+  { key: "shop_id", label: "Shop id", show: false },
+  { key: "shop_name", label: "Shop name", show: true },
+  { key: "shop_price", label: "Shop price", show: true },
+  { key: "difference_pct", label: "Diff %", show: true },
+  { key: "how_paired", label: "Paired by", show: true },
+];
+
+function checkPin() {
+  if (document.getElementById("pin").value === PIN) {
+    document.getElementById("pin-gate").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    loadSettings();
+    buildColToggles();
+  } else {
+    document.getElementById("pin-error").style.display = "block";
+  }
+}
+
+function showTab(name) {
+  document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
+  event.target.classList.add("active");
+  ["upload","results","settings"].forEach(t => {
+    document.getElementById("tab-" + t).style.display = t === name ? "block" : "none";
+  });
+}
+
+function fileLoaded(key) {
+  const input = document.getElementById("file-" + key);
+  if (input.files.length) {
+    files[key] = input.files[0];
+    document.getElementById("box-" + key).classList.add("ready");
+  }
+  document.getElementById("run-btn").disabled = !files.handil;
+}
+
+function cleanEAN(v) { if (v == null) return null; const s = String(v).replace(/\D/g, ""); return s.length >= 8 ? s : null; }
+function cleanVVS(v) { if (v == null) return null; const s = String(v).replace(/\D/g, ""); return (s.length >= 6 && s.length <= 10) ? s : null; }
+function num(v) { if (v == null) return null; const n = parseFloat(String(v).replace(",", ".")); return isNaN(n) ? null : n; }
+
+function parseFile(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: "array" });
+      const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null });
+      resolve(json);
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+async function runComparison() {
+  const status = document.getElementById("status");
+  status.textContent = "Reading files...";
+  const handil = await parseFile(files.handil);
+  const kros = files.krosstein ? await parseFile(files.krosstein) : [];
+  const billig = files.billig ? await parseFile(files.billig) : [];
+
+  status.textContent = "Pairing...";
+  const useFreight = document.getElementById("set-freight").checked;
+  const useRatio = document.getElementById("set-ratio").checked;
+
+  const krosByEAN = {}, krosByVVS = {}, billigByEAN = {}, billigByVVS = {};
+  kros.forEach(r => {
+    const ean = cleanEAN(r.ean), vvs = cleanVVS(r.sku), price = num(r.price);
+    if (ean && price) krosByEAN[ean] = { ...r, price };
+    if (vvs && price) krosByVVS[vvs] = { ...r, price };
+  });
+  billig.forEach(r => {
+    const ean = cleanEAN(r.ean), vvs = cleanVVS(r.vvs_nr), price = num(r.price);
+    if (price) {
+      const p = useFreight ? price * 1.08 : price;
+      if (ean) billigByEAN[ean] = { ...r, price: p };
+      if (vvs) billigByVVS[vvs] = { ...r, price: p };
+    }
+  });
+
+  allResults = handil.map(mp => {
+    const mpNr = mp.nr || mp.id || "";
+    const mpName = mp.name || "";
+    const mpPrice = num(mp.price);
+    const mpEAN = cleanEAN(mp.ean);
+    const mpVVS = cleanVVS(mp.nr) || cleanVVS(mp.vvs);
+    let best = null;
+    function consider(hit, shop, method) {
+      if (!hit || !hit.price) return;
+      if (useRatio && mpPrice && (hit.price / mpPrice > 2.5 || mpPrice / hit.price > 2.5)) return;
+      if (!best || hit.price < best.shop_price) {
+        best = { shop, shop_id: hit.sku || hit.id || hit.vvs_nr || "", shop_name: hit.name || "", shop_price: hit.price, method };
+      }
+    }
+    if (mpEAN) { consider(krosByEAN[mpEAN], "Krosstein", "EAN"); consider(billigByEAN[mpEAN], "BilligVVS", "EAN"); }
+    if (mpVVS) { consider(krosByVVS[mpVVS], "Krosstein", "VVS"); consider(billigByVVS[mpVVS], "BilligVVS", "VVS"); }
+    const diff = (best && mpPrice) ? ((best.shop_price - mpPrice) / mpPrice * 100) : null;
+    return {
+      MP_nr: mpNr, MP_name: mpName, MP_price: mpPrice,
+      shop: best ? best.shop : "", shop_id: best ? best.shop_id : "", shop_name: best ? best.shop_name : "",
+      shop_price: best ? best.shop_price : null,
+      difference_pct: diff != null ? Math.round(diff * 10) / 10 : null,
+      how_paired: best ? best.method : ""
+    };
+  });
+
+  status.textContent = `Done. ${allResults.filter(r => r.shop).length} matched out of ${allResults.length}.`;
+  showTab("results");
+  document.querySelector(".tabs button:nth-child(2)").classList.add("active");
+  document.querySelector(".tabs button:nth-child(1)").classList.remove("active");
+  applyFilters();
+}
+
+function applyFilters() {
+  const q = (document.getElementById("f-search").value || "").toLowerCase();
+  const shop = document.getElementById("f-shop").value;
+  const diff = document.getElementById("f-diff").value;
+  const min = num(document.getElementById("f-min").value);
+  const max = num(document.getElementById("f-max").value);
+
+  let rows = allResults.filter(r => {
+    if (q && !((r.MP_name || "").toLowerCase().includes(q) || (r.shop_name || "").toLowerCase().includes(q))) return false;
+    if (shop === "" && document.getElementById("f-shop").selectedIndex === 3) return !r.shop;
+    if (shop && r.shop !== shop) return false;
+    if (diff === "cheaper" && !(r.difference_pct > 0)) return false;
+    if (diff === "more" && !(r.difference_pct < 0)) return false;
+    if (diff === "big" && !(Math.abs(r.difference_pct) > 20)) return false;
+    if (min != null && (r.MP_price == null || r.MP_price < min)) return false;
+    if (max != null && (r.MP_price == null || r.MP_price > max)) return false;
+    return true;
+  });
+
+  rows.sort((a, b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (va == null) va = sortDir > 0 ? Infinity : -Infinity;
+    if (vb == null) vb = sortDir > 0 ? Infinity : -Infinity;
+    if (typeof va === "string") return sortDir * va.localeCompare(vb);
+    return sortDir * (va - vb);
+  });
+
+  renderTable(rows);
+}
+
+function renderTable(rows) {
+  const visible = COLUMNS.filter(c => c.show);
+  let html = `<div style="margin-bottom:8px; color:#666;">Showing ${rows.length} of ${allResults.length}</div>
+  <table><thead><tr>`;
+  visible.forEach(c => {
+    html += `<th onclick="sortBy('${c.key}')">${c.label} ${sortCol===c.key ? (sortDir>0?"↑":"↓") : ""}</th>`;
+  });
+  html += "</tr></thead><tbody>";
+  rows.forEach(r => {
+    html += "<tr>";
+    visible.forEach(c => {
+      let val = r[c.key];
+      let cls = "";
+      if (c.key === "difference_pct" && val != null) cls = val > 0 ? "diff-pos" : "diff-neg";
+      if (c.key === "how_paired") cls = "sure";
+      if (typeof val === "number" && c.key.includes("price")) val = val.toFixed(2);
+      if (val == null) val = "";
+      html += `<td class="${cls}">${String(val).slice(0, 80)}</td>`;
+    });
+    html += "</tr>";
+  });
+  html += "</tbody></table>";
+  document.getElementById("results-container").innerHTML = html;
+}
+
+function sortBy(key) {
+  if (sortCol === key) sortDir *= -1;
+  else { sortCol = key; sortDir = key === "difference_pct" ? -1 : 1; }
+  applyFilters();
+}
+
+function downloadResults() {
+  if (!allResults.length) return;
+  const ws = XLSX.utils.json_to_sheet(allResults);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Comparison");
+  XLSX.writeFile(wb, "mp_comparison.xlsx");
+}
+
+function buildColToggles() {
+  const box = document.getElementById("col-toggles");
+  box.innerHTML = COLUMNS.map(c => 
+    `<label><input type="checkbox" data-key="${c.key}" ${c.show?"checked":""} onchange="toggleCol(this)"> ${c.label}</label>`
+  ).join("");
+}
+function toggleCol(el) {
+  const col = COLUMNS.find(c => c.key === el.dataset.key);
+  if (col) col.show = el.checked;
+  saveSettings();
+  if (allResults.length) applyFilters();
+}
+function saveSettings() {
+  localStorage.setItem("mp-cols", JSON.stringify(COLUMNS.map(c => ({key:c.key, show:c.show}))));
+  localStorage.setItem("mp-freight", document.getElementById("set-freight").checked);
+  localStorage.setItem("mp-ratio", document.getElementById("set-ratio").checked);
+}
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("mp-cols") || "[]");
+    saved.forEach(s => { const c = COLUMNS.find(x => x.key === s.key); if (c) c.show = s.show; });
+    const f = localStorage.getItem("mp-freight");
+    const r = localStorage.getItem("mp-ratio");
+    if (f !== null) document.getElementById("set-freight").checked = f === "true";
+    if (r !== null) document.getElementById("set-ratio").checked = r === "true";
+  } catch(e) {}
+}
+document.getElementById("set-freight").onchange = saveSettings;
+document.getElementById("set-ratio").onchange = saveSettings;
+</script>
+</body>
+</html>
