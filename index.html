@@ -46,10 +46,10 @@
   .upload-box { border: 2px dashed #cbd5e1; padding: 28px 20px; border-radius: 16px; text-align: center; transition: all .2s; background: #fafbfc; }
   .upload-box:hover { border-color: var(--accent-light); background: #f0fdfa; }
   .upload-box.ready { border-color: var(--green); background: #f0fdf4; border-style: solid; }
-  .progress-container { margin: 20px 0; display: none; }
-  .progress-bar { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; }
+  .progress-container { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; background: white; box-shadow: 0 2px 12px rgba(0,0,0,.12); padding: 14px 24px; display: none; }
+  .progress-bar { height: 12px; background: #e2e8f0; border-radius: 6px; overflow: hidden; }
   .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); width: 0%; transition: width .4s ease; border-radius: 6px; }
-  .progress-text { margin-top: 10px; font-size: 14px; color: var(--muted); font-weight: 500; }
+  .progress-text { margin-top: 8px; font-size: 15px; color: var(--text); font-weight: 600; text-align: center; }
   .filters { display: flex; flex-wrap: wrap; gap: 14px; margin: 20px 0; align-items: end; }
   .filters label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 6px; font-weight: 500; }
   .filters input, .filters select { padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit; background: white; }
@@ -98,10 +98,6 @@
   <div id="tab-upload" class="panel">
     <div class="upload-row" id="upload-boxes"></div>
     <button id="run-btn" onclick="runComparison()" disabled>Run comparison</button>
-    <div class="progress-container" id="progress-container">
-      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
-      <div class="progress-text" id="progress-text"></div>
-    </div>
     <div id="status"></div>
   </div>
 
@@ -157,6 +153,11 @@
     </div>
     <p style="color:var(--muted); font-size:13px;">Settings are saved in this browser.</p>
   </div>
+</div>
+
+<div class="progress-container" id="progress-container">
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  <div class="progress-text" id="progress-text"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -331,7 +332,7 @@ async function runComparison() {
   });
 
   setProgress(100, "Complete");
-  setTimeout(() => { document.getElementById("progress-container").style.display = "none"; }, 1200);
+  setTimeout(() => { document.getElementById("progress-container").style.display = "none"; }, 2000);
   status.textContent = `Done. ${allResults.filter(r => r.shop).length} matched out of ${allResults.length}.`;
   updateShopFilter();
   showTab("results");
