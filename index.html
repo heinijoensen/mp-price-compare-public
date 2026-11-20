@@ -69,7 +69,7 @@
   .store-list { margin: 12px 0; }
   .store-item { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; padding: 12px; background: #f8fafc; border-radius: 12px; }
   .store-item input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; }
-  #status { margin-top: 16px; font-weight: 500; color: var(--text); }
+  #status { margin-top: 16px; font-weight: 500; color: var(--text); min-height: 1.2em; }
   .error { color: var(--red); font-weight: 600; }
   @media (max-width: 700px) { .upload-row { grid-template-columns: 1fr; } .tabs { width: 100%; justify-content: center; } }
 </style>
@@ -101,8 +101,8 @@
 
   <div id="tab-upload" class="panel">
     <div class="upload-row" id="upload-boxes"></div>
-    <button id="run-btn" onclick="runComparison()" disabled>Run comparison</button>
-    <div id="status"></div>
+    <button id="run-btn" onclick="runComparison()">Run comparison</button>
+    <div id="status">Upload the handil file, then click Run.</div>
   </div>
 
   <div id="tab-results" class="panel" style="display:none;">
@@ -207,7 +207,7 @@ function checkPin() {
 
 function showTab(name) {
   document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
-  if (event && event.target) event.target.classList.add("active");
+  if (typeof event !== 'undefined' && event && event.target) event.target.classList.add("active");
   ["upload","results","settings"].forEach(t => {
     document.getElementById("tab-" + t).style.display = t === name ? "block" : "none";
   });
@@ -229,7 +229,6 @@ function renderUploadBoxes() {
     </div>`;
   });
   container.innerHTML = html;
-  updateRunButton();
 }
 
 function fileLoaded(key) {
@@ -238,12 +237,8 @@ function fileLoaded(key) {
     files[key] = input.files[0];
     const box = document.getElementById("box-" + key);
     if (box) box.classList.add("ready");
+    document.getElementById("status").textContent = "File ready. Click Run comparison.";
   }
-  updateRunButton();
-}
-
-function updateRunButton() {
-  document.getElementById("run-btn").disabled = !files.handil;
 }
 
 function cleanEAN(v) { if (v == null) return null; const s = String(v).replace(/\D/g, ""); return s.length >= 8 ? s : null; }
@@ -280,13 +275,14 @@ function setProgress(pct, text) {
 
 async function runComparison() {
   const status = document.getElementById("status");
-  status.textContent = "";
   status.className = "";
+  status.textContent = "Starting...";
   setProgress(5, "Starting...");
   try {
     if (!files.handil) throw new Error("Please upload the handil file first");
     const handil = await parseFile(files.handil);
     setProgress(15, "Handil loaded");
+    status.textContent = "Handil loaded, reading shops...";
 
     const shopData = {};
     let progress = 20;
@@ -300,6 +296,7 @@ async function runComparison() {
     }
 
     setProgress(70, "Pairing products...");
+    status.textContent = "Pairing products...";
     const useRatio = document.getElementById("set-ratio").checked;
 
     const lookups = {};
@@ -357,7 +354,7 @@ async function runComparison() {
     setProgress(0, "Error");
     status.textContent = "Error: " + (err.message || err);
     status.className = "error";
-    setTimeout(() => { document.getElementById("progress-container").style.display = "none"; }, 3000);
+    setTimeout(() => { document.getElementById("progress-container").style.display = "none"; }, 4000);
   }
 }
 
