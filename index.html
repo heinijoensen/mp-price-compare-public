@@ -95,9 +95,9 @@
   </header>
 
   <div class="tabs">
-    <button class="active" onclick="showTab('upload')">Upload & Run</button>
-    <button onclick="showTab('results')">Results</button>
-    <button onclick="showTab('settings')">Settings</button>
+    <button class="active" data-tab="upload" onclick="showTab('upload', this)">Upload & Run</button>
+    <button data-tab="results" onclick="showTab('results', this)">Results</button>
+    <button data-tab="settings" onclick="showTab('settings', this)">Settings</button>
   </div>
 
   <div id="tab-upload" class="panel">
@@ -219,11 +219,16 @@ function checkPin() {
   }
 }
 
-function showTab(name) {
+function showTab(name, btn) {
   document.querySelectorAll(".tabs button").forEach(b => b.classList.remove("active"));
-  if (typeof event !== 'undefined' && event && event.target) event.target.classList.add("active");
+  if (btn && btn.classList) btn.classList.add("active");
+  else {
+    const target = document.querySelector(`.tabs button[data-tab="${name}"]`);
+    if (target) target.classList.add("active");
+  }
   ["upload","results","settings"].forEach(t => {
-    document.getElementById("tab-" + t).style.display = t === name ? "block" : "none";
+    const el = document.getElementById("tab-" + t);
+    if (el) el.style.display = t === name ? "block" : "none";
   });
   if (name === "settings") {
     renderStores();
@@ -363,8 +368,6 @@ async function runComparison() {
     status.textContent = `Done. ${allResults.filter(r => r.shop).length} matched out of ${allResults.length}.`;
     updateShopFilter();
     showTab("results");
-    document.querySelector(".tabs button:nth-child(2)").classList.add("active");
-    document.querySelector(".tabs button:nth-child(1)").classList.remove("active");
     applyFilters();
   } catch (err) {
     console.error(err);
