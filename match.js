@@ -208,18 +208,20 @@
         if (i == null && conf.comp_vvs) i = idx.byVVS.get(conf.comp_vvs);
         if (i != null) { hit = i; level = "confirmed"; }
       }
-      if (hit == null && !(conf && conf.status === "none_final")) {
-        for (const e of mp.eans) { if (idx.byEAN.has(e)) { hit = idx.byEAN.get(e); level = "ean"; break; } }
-        if (hit == null) for (const v of mp.vvs) { if (idx.byVVS.has(v)) { hit = idx.byVVS.get(v); level = "vvs"; break; } }
-        if (hit == null) for (const m of mp.mfr) { if (idx.byMfr.has(m)) { hit = idx.byMfr.get(m); level = "mfr"; break; } }
+      const rej = new Set((conf && conf.rejected) || []);
+      const ok = i => i != null && !rej.has(idx.rows[i].id);
+      if (hit == null) {
+        for (const e of mp.eans) { const i = idx.byEAN.get(e); if (ok(i)) { hit = i; level = "ean"; break; } }
+        if (hit == null) for (const v of mp.vvs) { const i = idx.byVVS.get(v); if (ok(i)) { hit = i; level = "vvs"; break; } }
+        if (hit == null) for (const m of mp.mfr) { const i = idx.byMfr.get(m); if (ok(i)) { hit = i; level = "mfr"; break; } }
       }
       if (hit == null && ctx.cfg.suggest) {
-        const rejected = new Set((conf && conf.rejected) || []);
-        cands = suggest(idx, mp.name, { minScore: ctx.cfg.minScore, top: 3, rejected });
+        cands = suggest(idx, mp.name, { minScore: ctx.cfg.minScore, top: 3, rejected: rej });
         if (cands.length) level = "suggestion";
       }
       const c = hit != null ? idx.rows[hit] : null;
       const flags = c ? sanity(mp, c, ctx.cfg) : [];
+      if (c && conf && conf.reported && !flags.includes("Reported by user")) flags.push("Reported by user" + (conf.note ? ": " + conf.note : ""));
       res.push({
         store: idx.store.name, store_id: sid, level, comp: c, flags,
         cands: cands.map(x => ({ ...idx.rows[x.i], score: x.score })),
